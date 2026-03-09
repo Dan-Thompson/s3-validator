@@ -1,0 +1,53 @@
+name: Build, Test, and Release
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - "v*"
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install -y build-essential
+
+      - name: Build
+        run: make
+
+      - name: Run self tests
+        run: make test
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries
+          path: |
+            crc64nvme_s3_multi
+            crc64nvme_s3
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: binaries
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            crc64nvme_s3_multi
+            crc64nvme_s3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
