@@ -381,8 +381,9 @@ int main(int argc, char** argv) {
             return 2;
         }
 
-        std::cout << "CRC64NVME hex:    " << crc64nvme::to_hex(crc) << '\n';
-        std::cout << "S3 header value:  " << crc64nvme::s3_base64(crc) << '\n';
+        //std::cout << "CRC64NVME hex:    " << crc64nvme::to_hex(crc) << '\n';
+        //std::cout << "S3 header value:  " << crc64nvme::s3_base64(crc) << '\n';
+        std::cout << crc64nvme::s3_base64(crc) << '\n';
         return 0;
     } catch (const std::exception& ex) {
         std::cerr << "Error: " << ex.what() << '\n';
