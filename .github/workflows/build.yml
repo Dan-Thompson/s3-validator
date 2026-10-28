@@ -3,8 +3,6 @@ name: Build, Test, and Release
 on:
   push:
     branches: [ main ]
-    tags:
-      - "v*"
   pull_request:
 
 permissions:
@@ -54,7 +52,7 @@ jobs:
           path: build/crc64nvme-linux-${{ matrix.arch }}.tar.gz
 
   release:
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -71,6 +69,8 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
+          tag_name: main-${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
           fail_on_unmatched_files: true
           files: |
             build/crc64nvme-linux-x86_64.tar.gz
