@@ -1,29 +1,42 @@
-CXX := g++
-CXXFLAGS_MULTI := -std=c++17 -O3 -pthread
-CXXFLAGS_SINGLE := -std=c++17 -O2
+CXX ?= c++
+CXXFLAGS ?= -O3
+PYTHON ?= python3
 
 MULTI_SRC := crc64nvme_s3-multicore.cpp
-SINGLE_SRC := crc64nvme_s3-singlecore.cpp
 
-BUILD_DIR := build
+BUILD_DIR ?= build
 MULTI_BIN := $(BUILD_DIR)/crc64nvme_s3_multi
-SINGLE_BIN := $(BUILD_DIR)/crc64nvme_s3
+PORTABLE_BIN := $(BUILD_DIR)/crc64nvme_s3_multi_portable
+TEST_BIN := $(BUILD_DIR)/test_crc64nvme
+PORTABLE_TEST_BIN := $(BUILD_DIR)/test_crc64nvme_portable
 
-.PHONY: all clean test
+.PHONY: all portable clean test
 
-all: $(MULTI_BIN) $(SINGLE_BIN)
+all: $(MULTI_BIN)
 
-$(MULTI_BIN): $(MULTI_SRC)
+portable: $(PORTABLE_BIN)
+
+$(MULTI_BIN): $(MULTI_SRC) Makefile
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS_MULTI) $< -o $@
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++17 -pthread $< $(LDFLAGS) $(LDLIBS) -o $@
 
-$(SINGLE_BIN): $(SINGLE_SRC)
+$(PORTABLE_BIN): $(MULTI_SRC) Makefile
 	@mkdir -p $(dir $@)
-	$(CXX) $(CXXFLAGS_SINGLE) $< -o $@
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++17 -pthread -DCRC64NVME_PORTABLE $< $(LDFLAGS) $(LDLIBS) -o $@
 
-test: all
-	./$(MULTI_BIN) --self-test
-	./$(SINGLE_BIN) --self-test
+$(TEST_BIN): tests/test_crc64nvme.cpp $(MULTI_SRC) Makefile
+	@mkdir -p $(dir $@)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++17 -pthread $< $(LDFLAGS) $(LDLIBS) -o $@
+
+$(PORTABLE_TEST_BIN): tests/test_crc64nvme.cpp $(MULTI_SRC) Makefile
+	@mkdir -p $(dir $@)
+	$(CXX) $(CPPFLAGS) $(CXXFLAGS) -std=c++17 -pthread -DCRC64NVME_PORTABLE $< $(LDFLAGS) $(LDLIBS) -o $@
+
+test: all $(TEST_BIN) $(PORTABLE_TEST_BIN)
+	$(abspath $(MULTI_BIN)) --self-test
+	$(abspath $(TEST_BIN))
+	$(abspath $(PORTABLE_TEST_BIN))
+	$(PYTHON) tests/test_cli.py $(MULTI_BIN)
 
 clean:
 	rm -rf $(BUILD_DIR)

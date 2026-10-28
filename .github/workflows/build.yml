@@ -1,49 +1,77 @@
 name: Build, Test, and Release
+
 on:
   push:
     branches: [ main ]
     tags:
       - "v*"
   pull_request:
+
+permissions:
+  contents: read
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    name: Linux ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86_64
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    env:
+      CXX: g++
+      CXXFLAGS: -O3 -Wall -Wextra -Wpedantic
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
+
       - name: Install build tools
-        run: sudo apt-get update && sudo apt-get install -y build-essential
+        run: sudo apt-get update && sudo apt-get install -y build-essential python3
+
       - name: Build
-        run: make
-      - name: Run self tests
-        run: make test
+        run: make -j"$(nproc)" all portable
+
+      - name: Run regression tests
+        run: |
+          make -j"$(nproc)" test
+          python3 tests/test_cli.py build/crc64nvme_s3_multi_portable
+
+      - name: Package tested binaries
+        run: |
+          tar -czf "build/crc64nvme-linux-${{ matrix.arch }}.tar.gz" -C build \
+            crc64nvme_s3_multi crc64nvme_s3_multi_portable
+
       - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: binaries
-          path: |
-            build/crc64nvme_s3_multi
-            build/crc64nvme_s3
+          name: binaries-linux-${{ matrix.arch }}
+          if-no-files-found: error
+          compression-level: 0
+          path: build/crc64nvme-linux-${{ matrix.arch }}.tar.gz
+
   release:
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install build tools
-        run: sudo apt-get update && sudo apt-get install -y build-essential
-
-      - name: Build
-        run: make
+      - name: Download tested binaries
+        uses: actions/download-artifact@v8
+        with:
+          pattern: binaries-linux-*
+          merge-multiple: true
+          path: build
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
+          fail_on_unmatched_files: true
           files: |
-            build/crc64nvme_s3_multi
-            build/crc64nvme_s3
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            build/crc64nvme-linux-x86_64.tar.gz
+            build/crc64nvme-linux-arm64.tar.gz
